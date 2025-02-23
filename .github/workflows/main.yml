@@ -1,0 +1,16 @@
+name: main
+on: [push]
+jobs:
+  op:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go: [stable, oldstable]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+      - run: go install lesiw.io/op@latest
+      - run: op
