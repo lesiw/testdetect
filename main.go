@@ -44,9 +44,11 @@ package %s
 
 func (t testingDetector) Testing() bool { return true }
 
-func init() {
+var _ = (testingDetector{}).testingDetectorEmbed.Testing()
+`
+
+var testingDetectorTamperProtectionTest = `func init() {
 	testingDetectorCovHack = true
-	_ = (testingDetector{}).testingDetectorEmbed.Testing()
 	defer func() { recover() }()
 	testingDetectorInit()
 }
@@ -75,10 +77,11 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("could not write testing_detector.go: %w", err)
 	}
-	err = os.WriteFile(
-		"testing_detector_test.go",
-		[]byte(fmt.Sprintf(testingDetectorTest, pkg)), 0644,
-	)
+	data := []byte(fmt.Sprintf(testingDetectorTest, pkg))
+	if pkg == "main" {
+		data = append(data, []byte(testingDetectorTamperProtectionTest)...)
+	}
+	err = os.WriteFile("testing_detector_test.go", data, 0644)
 	if err != nil {
 		return fmt.Errorf("could not write testing_detector_test.go: %w", err)
 	}

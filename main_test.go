@@ -124,7 +124,7 @@ func main() {
 
 import "testing"
 
-func TestMain(t *testing.T) { main() }
+func TestMain(_ *testing.T) { main() }
 `)
 	if err := os.WriteFile("main_test.go", tests, 0644); err != nil {
 		t.Fatal(err)
@@ -186,8 +186,28 @@ func Greet(s string) string { return fmt.Sprintf("Hello, %s!", s) }
 	if err := run(); err != nil {
 		t.Fatalf("run() = %q, want <nil>", err.Error())
 	}
+	var libTest = []byte(`package lib
+
+import "testing"
+
+func TestGreet(_ *testing.T) { Greet("Hello") }
+`)
+	if err := os.WriteFile("lib_test.go", libTest, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := run(); err != nil {
+		t.Fatalf("run() = %q, want <nil>", err.Error())
+	}
+	out, err := exec.Command("go", "test", "-cover").CombinedOutput()
+	if err != nil {
+		t.Errorf("go test failed: %s\n%s", err, out)
+	}
+	wantOut := []byte("coverage: 100.0% of statements")
+	if !bytes.Contains(out, wantOut) {
+		t.Errorf("go test output did not contain %q\n%s", string(wantOut), out)
+	}
 	chdir(t, "..")
-	out, err := exec.Command("go", "run", ".").CombinedOutput()
+	out, err = exec.Command("go", "run", ".").CombinedOutput()
 	if err != nil {
 		t.Errorf("go run failed: %s\n%s", err, out)
 	} else if want := []byte("Hello, world!"); !bytes.Contains(out, want) {
