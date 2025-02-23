@@ -1,22 +1,82 @@
 # testdetect
 
-Despite [many](https://github.com/golang/go/issues/12120),
-[many](https://github.com/golang/go/issues/14668),
-[many](https://github.com/golang/go/issues/21360),
-[many](https://github.com/golang/go/issues/60737),
-[many](https://github.com/golang/go/issues/60772),
-[many](https://github.com/golang/go/issues/64356)
-requests and proposals for a compile-time constraint to strip out test-time
-specific code, Go still does not have a `test` build tag.
-[`testing.Testing()`](https://pkg.go.dev/testing#Testing) was added in Go 1.21
-but is sadly not constant, meaning any code gated behind it will still be
-present in a release binary.
+Sometimes it is useful in Go code to provide test hooks so that methods can
+behave differently at test time. Here is a trivial example.
+
+```go
+package main
+
+import "fmt"
+
+var testHookGreet func(string) string
+
+func Greet(s string) string {
+    if h := testHookGreet; h != nil {
+        return h(s)
+    }
+    return fmt.Sprintf("Hello, %s!", s)
+}
+
+func main() { println(Greet("world")) }
+```
+
+Now `testHookGreet` can be set during testing to override the behavior of the
+real `Greet()`. This might be useful for tests that are not testing the
+implementation of `Greet()` itself, but in which `Greet()` is still being
+called somewhere.
+
+Test hooks are found in several places in the [Go standard library][stdlib]
+as well as elsewhere [in the wild][search].
+
+The Go compiler is not currently smart enough to recognize that, in the above
+example, `testHookGreet` is always `nil` when the real program is running. As a
+result, in the finished program, `Greet()` performs a check to see if
+`testHookGreet` is `nil` every time it is called ([godbolt][godbolt]).
+
+This has very little impact in the grand scheme of things, especially if the
+program is running with [profile-guided optimization][pgo], but it would be
+nice for test instrumentation like this to be brought down to zero impact.
 
 `testdetect` generates a package-local `testingDetector` type with a single
 method, `Testing()`. While not a true constant, this method is "constant
 enough" that most Go compilers will optimize test related branches out of the
-finished binary. In this way, it's the closest thing to an `#ifdef TEST` as we
-can get.
+finished binary. It's the closest thing to an `#ifdef TEST` as can be achieved
+today.
+
+Here it is wired into the previous example.
+
+```go
+package main
+
+import "fmt"
+
+var t testingDetector
+var testHookGreet func(string) string
+
+func Greet(s string) string {
+    if h := testHookGreet; t.Testing() && h != nil {
+        return h(s)
+    }
+    return fmt.Sprintf("Hello, %s!", s)
+}
+
+func main() { println(Greet("world")) }
+```
+
+Now the entire test hook branch is optimized away, leaving the compiled code
+effectively the same as if the program were written like this.
+
+```go
+package main
+
+import "fmt"
+
+func Greet(s string) string {
+    return fmt.Sprintf("Hello, %s!", s)
+}
+
+func main() { println(Greet("world")) }
+```
 
 ## Usage
 
@@ -90,8 +150,21 @@ this code is perfectly valid by Go spec rules and will never fail to run.
 
 I've built this in the hopes that it will someday be retired.
 
-All of this package's complexity could be reduced by treating `_test.go` files
-the same as any other build constraint and exposing a `test` build tag.
+Despite [many](https://github.com/golang/go/issues/12120),
+[many](https://github.com/golang/go/issues/14668),
+[many](https://github.com/golang/go/issues/21360),
+[many](https://github.com/golang/go/issues/60737),
+[many](https://github.com/golang/go/issues/60772),
+[many](https://github.com/golang/go/issues/64356)
+requests and proposals for a compile-time constraint to strip out test-time
+specific code, Go still does not have a `test` build tag.
+[`testing.Testing()`](https://pkg.go.dev/testing#Testing) was added in Go 1.21
+but is sadly not constant, meaning any code gated behind it will still be
+present in a release binary.
+
+Almost all of this utility's work could be could be made redundant if Go
+treated `_test.go` files the same as any other build constraint by exposing a
+`test` build tag.
 
 ```go filename=undertest_false.go
 //go:build !test
@@ -116,3 +189,9 @@ it a second time elsewhere in the code would be a compile error.
 I am personally of the opinion that this is simpler, more understandable, less
 surprising, and a simple `if false == true` check is highly likely to be
 optimized out by any current or future Go compiler.
+
+[stdlib]: https://github.com/search?q=repo%3Agolang%2Fgo%20testhook&type=code
+[search]:
+    https://github.com/search?q=NOT+repo%3Agolang%2Fgo+%22var+testhook%22+language%3AGo&type=code
+[pgo]: https://go.dev/doc/pgo
+[godbolt]: https://godbolt.org/z/fYj1rrEEx
