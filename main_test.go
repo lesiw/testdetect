@@ -147,6 +147,57 @@ func TestMain(t *testing.T) { main() }
 	}
 }
 
+func TestImport(t *testing.T) {
+	chTempDir(t)
+	cmd := exec.Command("go", "mod", "init", "example.com/pkg")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("go mod init failed: %s\n%s", err, string(out))
+	}
+	var program = []byte(`package main
+
+import "example.com/pkg/lib"
+
+func main() {
+	println(lib.Greet("world"))
+}
+`)
+	if err := os.WriteFile("main.go", program, 0644); err != nil {
+		t.Fatal(err)
+	}
+	var tests = []byte(`package main
+
+import "testing"
+
+func TestMain(t *testing.T) { main() }
+`)
+	if err := os.WriteFile("main_test.go", tests, 0644); err != nil {
+		t.Fatal(err)
+	}
+	chdir(t, "lib")
+	var lib = []byte(`package lib
+
+import "fmt"
+
+func Greet(s string) string { return fmt.Sprintf("Hello, %s!", s) }
+`)
+	if err := os.WriteFile("lib.go", lib, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := run(); err != nil {
+		t.Fatalf("run() = %q, want <nil>", err.Error())
+	}
+	chdir(t, "..")
+	out, err := exec.Command("go", "run", ".").CombinedOutput()
+	if err != nil {
+		t.Errorf("go run failed: %s\n%s", err, out)
+	} else if want := []byte("Hello, world!"); !bytes.Contains(out, want) {
+		t.Errorf("go run output did not contain %q\n%s", string(want), out)
+	}
+	if out, err := exec.Command("go", "test").CombinedOutput(); err != nil {
+		t.Errorf("go test failed: %s\n%s", err, out)
+	}
+}
+
 func chTempDir(t *testing.T) {
 	dir := t.TempDir()
 	wd, err := os.Getwd()
@@ -157,6 +208,15 @@ func chTempDir(t *testing.T) {
 		t.Fatalf("could not change directory to %q: %s", dir, err)
 	}
 	t.Cleanup(func() { _ = os.Chdir(wd) }) // Best effort.
+}
+
+func chdir(t *testing.T, dir string) {
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatalf("could not create directory %q: %s", dir, err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("could not change directory to %q: %s", dir, err)
+	}
 }
 
 func buildBinaries() (bin, testbin []byte, err error) {
