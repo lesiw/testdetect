@@ -218,25 +218,13 @@ func TestGreet(_ *testing.T) { Greet("Hello") }
 	}
 }
 
-func chTempDir(t *testing.T) {
-	dir := t.TempDir()
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("could not get working directory: %s", err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("could not change directory to %q: %s", dir, err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(wd) }) // Best effort.
-}
+func chTempDir(t *testing.T) { t.Chdir(t.TempDir()) }
 
 func chdir(t *testing.T, dir string) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		t.Fatalf("could not create directory %q: %s", dir, err)
 	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("could not change directory to %q: %s", dir, err)
-	}
+	t.Chdir(dir)
 }
 
 func buildBinaries() (bin, testbin []byte, err error) {
