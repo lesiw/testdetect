@@ -14,7 +14,7 @@ import (
 
 func TestSimple(t *testing.T) {
 	chTempDir(t)
-	var program = []byte(`package main
+	program := []byte(`package main
 
 var t testingDetector
 
@@ -30,7 +30,7 @@ func main() {
 	if err := os.WriteFile("main.go", program, 0644); err != nil {
 		t.Fatal(err)
 	}
-	var tests = []byte(`package main
+	tests := []byte(`package main
 
 import "testing"
 
@@ -74,7 +74,7 @@ func TestMain(t *testing.T) { main() }
 
 func TestTamperDetection(t *testing.T) {
 	chTempDir(t)
-	var program = []byte(`package main
+	program := []byte(`package main
 
 var t testingDetector
 
@@ -106,7 +106,7 @@ func main() {}
 
 func TestCodeCoverage(t *testing.T) {
 	chTempDir(t)
-	var program = []byte(`package main
+	program := []byte(`package main
 
 var t testingDetector
 
@@ -120,7 +120,7 @@ func main() {
 	if err := os.WriteFile("main.go", program, 0644); err != nil {
 		t.Fatal(err)
 	}
-	var tests = []byte(`package main
+	tests := []byte(`package main
 
 import "testing"
 
@@ -153,7 +153,7 @@ func TestImport(t *testing.T) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("go mod init failed: %s\n%s", err, string(out))
 	}
-	var program = []byte(`package main
+	program := []byte(`package main
 
 import "example.com/pkg/lib"
 
@@ -164,7 +164,7 @@ func main() {
 	if err := os.WriteFile("main.go", program, 0644); err != nil {
 		t.Fatal(err)
 	}
-	var tests = []byte(`package main
+	tests := []byte(`package main
 
 import "testing"
 
@@ -174,7 +174,7 @@ func TestMain(t *testing.T) { main() }
 		t.Fatal(err)
 	}
 	chdir(t, "lib")
-	var lib = []byte(`package lib
+	lib := []byte(`package lib
 
 import "fmt"
 
@@ -186,7 +186,7 @@ func Greet(s string) string { return fmt.Sprintf("Hello, %s!", s) }
 	if err := run(); err != nil {
 		t.Fatalf("run() = %q, want <nil>", err.Error())
 	}
-	var libTest = []byte(`package lib
+	libTest := []byte(`package lib
 
 import "testing"
 
@@ -240,25 +240,25 @@ func chdir(t *testing.T, dir string) {
 }
 
 func buildBinaries() (bin, testbin []byte, err error) {
-	gc := cmp.Or(os.Getenv("GOCOMPILER"), "go")
-	var g errgroup.Group
-	g.Go(func() error {
+	var (
+		gc = cmp.Or(os.Getenv("GOCOMPILER"), "go")
+		g  errgroup.Group
+	)
+	g.Go(func() (err error) {
 		cmd := exec.Command(gc, "build", "-o", "out", ".")
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("go build failed: %w\n%s", err, string(out))
 		}
-		var err error
 		if bin, err = os.ReadFile("out"); err != nil {
 			return err
 		}
 		return nil
 	})
-	g.Go(func() error {
+	g.Go(func() (err error) {
 		cmd := exec.Command(gc, "test", "-c", "-o", "out.test", ".")
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("go test -c failed: %w\n%s", err, string(out))
 		}
-		var err error
 		if testbin, err = os.ReadFile("out.test"); err != nil {
 			return err
 		}
